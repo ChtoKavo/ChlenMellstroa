@@ -1,7 +1,7 @@
 <?php
 session_start();
 require_once 'db_connect.php';
-
+//ГДЗ по математике за третий класс
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $login = $_POST['username'];
     $email = $_POST['email'];
