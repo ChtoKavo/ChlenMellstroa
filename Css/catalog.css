@@ -48,22 +48,7 @@
     color: #F5F9E4;
 }
 
-.new-product-card {
-    border: 1px solid #ddd;
-    padding: 20px;
-    text-align: center;
-    background-color: #F9FBEF;
-    border-radius: 5px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s, box-shadow 0.3s;
-    min-height: 400px;
-    display: flex;
-    position: relative;
-    min-width: 300px;
-    align-items: center;
-    flex-direction: column;
-    justify-content: space-between;
-}
+
 
 .new-product-card:hover {
     transform: translateY(-5px);

@@ -1,3 +1,28 @@
+<?php
+session_start();
+require_once 'db_connect.php';
+
+// Проверяем авторизацию
+if (!isset($_SESSION['user_id'])) {
+    header('Location: vhod.php');
+    exit();
+}
+
+// Получаем избранные товары пользователя
+try {
+    $userId = $_SESSION['user_id'];
+    $stmt = $conn->prepare("
+        SELECT i.*, f.idFavorite 
+        FROM Item i 
+        JOIN Favorites f ON i.idItem = f.idItem 
+        WHERE f.idUser = ?
+    ");
+    $stmt->execute([$userId]);
+    $favoriteItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch(PDOException $e) {
+    $error = "Ошибка при получении данных: " . $e->getMessage();
+}
+?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -68,22 +93,54 @@
             list-style: none;
             padding: 0;
         }
+        .favorite-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+        }
+        .favorite-button img {
+            width: 24px;
+            height: 24px;
+        }
+        .product-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .empty-favorites {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+        }
+        .empty-favorites a {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
 <div class="App">
     <header class="header">
-        <img src="./images/Используются везде/logo.png" alt="Логотип" class="logo" />
+        <a href="../index.php">
+            <img src="../Media/logo.png" alt="Логотип" class="logo"/>
+        </a>
         <input style="width: 500px;" placeholder="Название товара" type="text" />
         <div class="button-container">
-            <a href="/personal" class="icon-button">
-                <img alt="user" src="./images/Используются везде/user-icon.png" />
+            <a href="personal.php" class="icon-button">
+                <img alt="user" src="../Media/user-icon.png" />
             </a>
-            <a href="/favourites" class="icon-button">
-                <img alt="love" src="./images/Используются везде/love-icon.png" />
+            <a href="fav.php" class="icon-button">
+                <img alt="love" src="../Media/love-icon.png" />
             </a>
-            <a href="/basket" class="icon-button">
-                <img alt="store" src="./images/Используются везде/store-icon.png" />
+            <a href="busket.php" class="icon-button">
+                <img alt="store" src="../Media/store-icon.png" />
             </a>
         </div>
     </header>
@@ -101,27 +158,31 @@
     </nav>
     <div class="content">
         <main class="new-product-grid">
-            <div class="new-product-card">
-                <img src="https://avatars.mds.yandex.net/i?id=872dc79fb43f6d5d72c2024dff7bf222-5910939-images-thumbs&n=13" alt="Товар 1" />
-                <div class="new-product-content">
-                    <h3>Товар 1</h3>
-                    <p>Описание товара 1</p>
+            <?php if (empty($favoriteItems)): ?>
+                <div class="empty-favorites">
+                    <p>В избранном пока нет товаров</p>
+                    <a href="catalog.php">Перейти в каталог</a>
                 </div>
-                <button class="new-basket-button">
-                    <img src="./images/Используются везде/basket.png" alt="Корзина" />
-                </button>
-            </div>
-            <div class="new-product-card">
-                <img src="https://avatars.mds.yandex.net/i?id=872dc79fb43f6d5d72c2024dff7bf222-5910939-images-thumbs&n=13" alt="Товар 2" />
-                <div class="new-product-content">
-                    <h3>Товар 2</h3>
-                    <p>Описание товара 2</p>
-                </div>
-                <button class="new-basket-button">
-                    <img src="./images/Используются везде/basket.png" alt="Корзина" />
-                </button>
-            </div>
-            <!-- Повторяем аналогичный блок еще 10 раз -->
+            <?php else: ?>
+                <?php foreach ($favoriteItems as $item): ?>
+                    <div class="new-product-card" data-item-id="<?php echo $item['idItem']; ?>">
+                        <img src="data:image/jpeg;base64,<?php echo base64_encode($item['img']); ?>" 
+                             alt="<?php echo htmlspecialchars($item['ItemName']); ?>" />
+                        <div class="new-product-content">
+                            <h3><?php echo htmlspecialchars($item['ItemName']); ?></h3>
+                            <p><?php echo number_format($item['Price'], 0, '', ' '); ?>₽</p>
+                        </div>
+                        <div class="product-actions">
+                            <button class="favorite-button" onclick="toggleFavorite(<?php echo $item['idItem']; ?>)">
+                                <img src="../Media/love-icon-filled.png" alt="В избранном" />
+                            </button>
+                            <button class="new-basket-button" onclick="addToCart(<?php echo $item['idItem']; ?>)">
+                                <img src="../Media/store-icon.png" alt="В корзину" />
+                            </button>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
         </main>
         <div class="advertisement">
             <img src="./images/favourites/Реклама.png" alt="Реклама" />
@@ -166,5 +227,56 @@
         </div>
     </footer>
 </div>
+
+<script>
+function toggleFavorite(itemId) {
+    fetch('toggle_favorite.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `item_id=${itemId}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Удаляем карточку товара из отображения
+            const card = document.querySelector(`.new-product-card[data-item-id="${itemId}"]`);
+            card.remove();
+            
+            // Если больше нет товаров, показываем сообщение
+            if (document.querySelectorAll('.new-product-card').length === 0) {
+                const main = document.querySelector('.new-product-grid');
+                main.innerHTML = `
+                    <div class="empty-favorites">
+                        <p>В избранном пока нет товаров</p>
+                        <a href="catalog.php">Перейти в каталог</a>
+                    </div>
+                `;
+            }
+        }
+    })
+    .catch(error => console.error('Ошибка:', error));
+}
+
+function addToCart(itemId) {
+    fetch('add_to_cart.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `item_id=${itemId}&quantity=1`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Товар добавлен в корзину');
+        } else {
+            alert(data.message || 'Произошла ошибка');
+        }
+    })
+    .catch(error => console.error('Ошибка:', error));
+}
+</script>
 </body>
 </html>

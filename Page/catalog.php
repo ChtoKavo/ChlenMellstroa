@@ -1,3 +1,80 @@
+<?php
+session_start();
+require_once 'db_connect.php';
+
+// Параметры сортировки и фильтрации
+$sort = isset($_GET['sort']) ? $_GET['sort'] : 'default';
+$category = isset($_GET['category']) ? (int)$_GET['category'] : 0;
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+// Базовый SQL запрос
+$sql = "SELECT i.*, c.nameCategory, 
+        (SELECT COUNT(*) FROM Cart WHERE idItem = i.idItem) as popularity
+        FROM Item i 
+        LEFT JOIN Category c ON i.idCategory = c.idCategory";
+
+// Добавляем условия фильтрации
+$params = [];
+$where = [];
+
+if ($category > 0) {
+    $where[] = "i.idCategory = ?";
+    $params[] = $category;
+}
+
+if (!empty($search)) {
+    $where[] = "(i.ItemName LIKE ? OR i.DescriptionItem LIKE ?)";
+    $params[] = "%$search%";
+    $params[] = "%$search%";
+}
+
+if (!empty($where)) {
+    $sql .= " WHERE " . implode(" AND ", $where);
+}
+
+// Добавляем сортировку
+switch ($sort) {
+    case 'price_asc':
+        $sql .= " ORDER BY i.Price ASC";
+        break;
+    case 'price_desc':
+        $sql .= " ORDER BY i.Price DESC";
+        break;
+    case 'name_asc':
+        $sql .= " ORDER BY i.ItemName ASC";
+        break;
+    case 'name_desc':
+        $sql .= " ORDER BY i.ItemName DESC";
+        break;
+    case 'popularity':
+        $sql .= " ORDER BY popularity DESC";
+        break;
+    default:
+        $sql .= " ORDER BY i.idItem DESC";
+}
+
+try {
+    // Получаем список товаров
+    $stmt = $conn->prepare($sql);
+    $stmt->execute($params);
+    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Получаем список категорий
+    $stmt = $conn->prepare("SELECT * FROM Category ORDER BY nameCategory");
+    $stmt->execute();
+    $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Если пользователь авторизован, получаем его избранные товары
+    $favorites = [];
+    if (isset($_SESSION['user_id'])) {
+        $stmt = $conn->prepare("SELECT idItem FROM Favorites WHERE idUser = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $favorites = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+} catch(PDOException $e) {
+    $error = "Ошибка при получении данных: " . $e->getMessage();
+}
+?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -6,157 +83,374 @@
     <title>Каталог</title>
     <link rel="stylesheet" href="..\Css\catalog.css">
     <style>
-        body {
-            font-family: Arial, Helvetica, sans-serif;
-        }
-        .App {
+        .catalog-container {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 30px;
             padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
         }
-        header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+
+        /* Стили для сайдбара */
+        .catalog-sidebar {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            height: fit-content;
+            position: sticky;
+            top: 20px;
         }
-        input[type="text"] {
-            width: 500px;
-            padding: 10px;
+
+        .sidebar-section {
+            margin-bottom: 25px;
+        }
+
+        .sidebar-title {
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-weight: 600;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .sidebar-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-item {
             margin-bottom: 10px;
         }
-        aside {
-            float: left;
-            width: 20%;
-            padding-right: 20px;
+
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            color: #495057;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: all 0.2s ease;
         }
-        main {
-            float: right;
-            width: 80%;
+
+        .sidebar-link:hover {
+            background: #f8f9fa;
+            color: #007bff;
         }
+
+        .sidebar-link.active {
+            background: #e7f1ff;
+            color: #007bff;
+            font-weight: 500;
+        }
+
+        /* Стили для сетки товаров */
         .new-product-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 20px;
+            padding: 0;
         }
+
+        @media (min-width: 768px) {
+            .new-product-grid {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
+        }
+
         .new-product-card {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: center;
+            position: relative;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
         }
-        .new-product-content h3 {
-            margin-bottom: 5px;
+
+        .new-product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
-        .new-basket-button {
+
+        .product-image-container {
+            position: relative;
+            padding-top: 100%;
+            overflow: hidden;
+            background: #f8f9fa;
+        }
+
+        .product-image-container img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .favorite-button {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: white;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 2;
+            transition: all 0.2s ease;
+            padding: 0;
         }
-        footer {
-            clear: both;
+
+        .favorite-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .favorite-button img {
+            width: 18px;
+            height: 18px;
+        }
+
+        .new-product-content {
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        .product-category {
+            font-size: 11px;
+            color: #6c757d;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .product-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 0 0 8px 0;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .product-price {
+            font-size: 16px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin: 8px 0;
+        }
+
+        .new-basket-button {
+            width: 100%;
+            padding: 8px;
+            background: #007bff;
+            color: white;
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: auto;
+        }
+
+        .new-basket-button:hover {
+            background: #0056b3;
+        }
+
+        .new-basket-button img {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Стили для контролов каталога */
+        .catalog-controls {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 50px;
+            flex-wrap: wrap;
+            gap: 20px;
         }
-        .footer-section ul {
-            list-style: none;
-            padding: 0;
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .control-label {
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .control-select {
+            padding: 8px 12px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            background: white;
+            color: #495057;
+            font-size: 14px;
+            cursor: pointer;
+            min-width: 200px;
+        }
+
+        .control-select:focus {
+            border-color: #007bff;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+        }
+
+        /* Стили для пустого результата */
+        .empty-result {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .empty-result h2 {
+            color: #2c3e50;
+            margin-bottom: 16px;
+        }
+
+        .empty-result p {
+            color: #6c757d;
+            margin-bottom: 0;
         }
     </style>
 </head>
 <body>
 <div class="App">
     <header class="header">
-        <img src="./images/Используются везде/logo.png" alt="Логотип" class="logo" />
-        <input style="width: 500px;" placeholder="Название товара" type="text" />
+        <a href="../index.php">
+            <img src="../Media/logo.png" alt="Логотип" class="logo"/>
+        </a>
+        <form class="search-form" method="GET">
+            <input type="text" name="search" class="search-input" 
+                   placeholder="Поиск товаров..." 
+                   value="<?php echo htmlspecialchars($search); ?>" />
+            <button type="submit" class="search-button">Найти</button>
+        </form>
         <div class="button-container">
-            <a href="/personal" class="icon-button">
-                <img alt="user" src="./images/Используются везде/user-icon.png" />
+            <a href="personal.php" class="icon-button">
+                <img alt="user" src="../Media/user-icon.png" />
             </a>
-            <a href="/favourites" class="icon-button">
-                <img alt="love" src="./images/Используются везде/love-icon.png" />
+            <a href="fav.php" class="icon-button">
+                <img alt="love" src="../Media/love-icon.png" />
             </a>
-            <a href="/basket" class="icon-button">
-                <img alt="store" src="./images/Используются везде/store-icon.png" />
+            <a href="busket.php" class="icon-button">
+                <img alt="store" src="../Media/store-icon.png" />
             </a>
         </div>
     </header>
-    <nav class="nav">
-        <ul>
-            <li><a href="#veterinary">Ветеринарные</a></li>
-            <li><a href="#adults">Для взрослых</a></li>
-            <li><a href="#family">Для всей семьи</a></li>
-            <li><a href="#children">Для детей</a></li>
-            <li><a href="#classic">Классические</a></li>
-            <li><a href="#plans">Планы</a></li>
-            <li><a href="#strategic">Стратегические</a></li>
-            <li><a href="#sales">Хаты продаж</a></li>
-        </ul>
-    </nav>
-    <div class="new-catalog-container">
-        <aside class="new-catalog-sidebar">
-            <h2>Каталог</h2>
-            <ul>
-                <li onclick="toggleCategory('popularGames')" style="cursor: pointer;">Популярные игры</li>
-                <ul id="popularGames" style="display: none;">
-                    <li><a href="#popular1">Топ 10 настольных игр</a></li>
-                    <li><a href="#popular2">Новинки месяца</a></li>
-                    <li><a href="#popular3">Игры с высоким рейтингом</a></li>
+
+    <div class="catalog-container">
+        <aside class="catalog-sidebar">
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">Категории</h3>
+                <ul class="sidebar-list">
+                    <?php foreach ($categories as $cat): ?>
+                        <li class="sidebar-item">
+                            <a href="?category=<?php echo $cat['idCategory']; ?>" 
+                               class="sidebar-link <?php echo $category == $cat['idCategory'] ? 'active' : ''; ?>">
+                                <?php echo htmlspecialchars($cat['nameCategory']); ?>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
                 </ul>
-                <li onclick="toggleCategory('genres')" style="cursor: pointer;">Жанры игр</li>
-                <ul id="genres" style="display: none;">
-                    <li><a href="#genre1">Стратегические игры</a></li>
-                    <li><a href="#genre2">Карточные игры</a></li>
-                    <li><a href="#genre3">Семейные игры</a></li>
-                    <li><a href="#genre4">Ролевые игры</a></li>
-                    <li><a href="#genre5">Партии и вечеринки</a></li>
-                    <li><a href="#genre6">Кооперативные игры</a></li>
+            </div>
+
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">Сортировка</h3>
+                <ul class="sidebar-list">
+                    <li class="sidebar-item">
+                        <a href="?sort=price_asc" class="sidebar-link <?php echo $sort === 'price_asc' ? 'active' : ''; ?>">
+                            По возрастанию цены
+                        </a>
+                    </li>
+                    <li class="sidebar-item">
+                        <a href="?sort=price_desc" class="sidebar-link <?php echo $sort === 'price_desc' ? 'active' : ''; ?>">
+                            По убыванию цены
+                        </a>
+                    </li>
+                    <li class="sidebar-item">
+                        <a href="?sort=name_asc" class="sidebar-link <?php echo $sort === 'name_asc' ? 'active' : ''; ?>">
+                            По названию (А-Я)
+                        </a>
+                    </li>
+                    <li class="sidebar-item">
+                        <a href="?sort=popularity" class="sidebar-link <?php echo $sort === 'popularity' ? 'active' : ''; ?>">
+                            По популярности
+                        </a>
+                    </li>
                 </ul>
-                <li onclick="toggleCategory('ageCategories')" style="cursor: pointer;">Возрастные категории</li>
-                <ul id="ageCategories" style="display: none;">
-                    <li><a href="#age1">3 - 5 лет</a></li>
-                    <li><a href="#age2">6 - 7 лет</a></li>
-                    <li><a href="#age3">8 - 12 лет</a></li>
-                    <li><a href="#age4">13 - 17 лет</a></li>
-                    <li><a href="#age5">Более 18 лет</a></li>
-                </ul>
-                <li onclick="toggleCategory('playerCount')" style="cursor: pointer;">Количество игроков</li>
-                <ul id="playerCount" style="display: none;">
-                    <li><a href="#count1">Игры на 1-2 игрока</a></li>
-                    <li><a href="#count2">Игры на 3-6 игроков</a></li>
-                    <li><a href="#count3">Игры на большие компании (6+ игроков)</a></li>
-                </ul>
-                <li onclick="toggleCategory('playTime')" style="cursor: pointer;">Время игры</li>
-                <ul id="playTime" style="display: none;">
-                    <li><a href="#time1">Быстрые игры (до 30 минут)</a></li>
-                    <li><a href="#time2">Средние игры (от 30 до 60 минут)</a></li>
-                    <li><a href="#time3">Долгие игры (более 60 минут)</a></li>
-                </ul>
-                <li onclick="toggleCategory('discounts')" style="cursor: pointer;">Скидки и распродажи</li>
-                <ul id="discounts" style="display: none;">
-                    <li><a href="#discount1">Скидки на игры</a></li>
-                    <li><a href="#discount2">Специальное предложение</a></li>
-                </ul>
-            </ul>
+            </div>
         </aside>
-        <main class="new-product-grid">
-            <div class="new-product-card">
-                <img src="https://avatars.mds.yandex.net/i?id=872dc79fb43f6d5d72c2024dff7bf222-5910939-images-thumbs&n=13" alt="Товар 1" />
-                <div class="new-product-content">
-                    <h3>Товар 1</h3>
-                    <p>Описание товара 1</p>
-                </div>
-                <button class="new-basket-button">
-                    <img src="./images/Используются везде/basket.png" alt="Корзина" />
-                </button>
+
+        <main>
+            <div class="new-product-grid">
+                <?php if (empty($items)): ?>
+                    <div class="empty-result">
+                        <h2>Товары не найдены</h2>
+                        <p>Попробуйте изменить параметры поиска или фильтрации</p>
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($items as $item): ?>
+                        <div class="new-product-card" data-item-id="<?php echo $item['idItem']; ?>">
+                            <div class="product-image-container">
+                                <?php if (isset($_SESSION['user_id'])): ?>
+                                    <button class="favorite-button" onclick="toggleFavorite(<?php echo $item['idItem']; ?>, this)">
+                                        <img src="../Media/<?php echo in_array($item['idItem'], $favorites) ? 'love-icon-filled.png' : 'love-icon.png'; ?>" 
+                                             alt="<?php echo in_array($item['idItem'], $favorites) ? 'В избранном' : 'Добавить в избранное'; ?>" />
+                                    </button>
+                                <?php endif; ?>
+                                <img src="data:image/jpeg;base64,<?php echo base64_encode($item['img']); ?>" 
+                                     alt="<?php echo htmlspecialchars($item['ItemName']); ?>" />
+                            </div>
+                            <div class="new-product-content">
+                                <div class="product-category"><?php echo htmlspecialchars($item['nameCategory'] ?? 'Без категории'); ?></div>
+                                <h3 class="product-title"><?php echo htmlspecialchars($item['ItemName']); ?></h3>
+                                <div class="product-price"><?php echo number_format($item['Price'], 0, '', ' '); ?>₽</div>
+                                <button class="new-basket-button" onclick="addToCart(<?php echo $item['idItem']; ?>)">
+                                    <img src="../Media/store-icon.png" alt="" />
+                                    В корзину
+                                </button>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
-            <div class="new-product-card">
-                <img src="https://avatars.mds.yandex.net/i?id=872dc79fb43f6d5d72c2024dff7bf222-5910939-images-thumbs&n=13" alt="Товар 2" />
-                <div class="new-product-content">
-                    <h3>Товар 2</h3>
-                    <p>Описание товара 2</p>
-                </div>
-                <button class="new-basket-button">
-                    <img src="./images/Используются везде/basket.png" alt="Корзина" />
-                </button>
-            </div>
-            <!-- Повторяем аналогичные блоки для оставшихся продуктов -->
         </main>
     </div>
     <footer class="footer">
@@ -206,6 +500,65 @@
         } else {
             categoryElement.style.display = "none";
         }
+    }
+
+    function updateParams(param, value) {
+        const url = new URL(window.location.href);
+        url.searchParams.set(param, value);
+        window.location.href = url.toString();
+    }
+
+    function toggleFavorite(itemId, button) {
+        <?php if (!isset($_SESSION['user_id'])): ?>
+            window.location.href = 'vhod.php';
+            return;
+        <?php endif; ?>
+
+        fetch('toggle_favorite.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `item_id=${itemId}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const img = button.querySelector('img');
+                if (data.action === 'added') {
+                    img.src = '../Media/love-icon-filled.png';
+                    img.alt = 'В избранном';
+                } else {
+                    img.src = '../Media/love-icon.png';
+                    img.alt = 'Добавить в избранное';
+                }
+            }
+        })
+        .catch(error => console.error('Ошибка:', error));
+    }
+
+    function addToCart(itemId) {
+        <?php if (!isset($_SESSION['user_id'])): ?>
+            window.location.href = 'vhod.php';
+            return;
+        <?php endif; ?>
+
+        fetch('add_to_cart.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `item_id=${itemId}&quantity=1`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Товар добавлен в корзину');
+            } else {
+                alert(data.message || 'Произошла ошибка');
+            }
+        })
+        .catch(error => console.error('Ошибка:', error));
     }
 </script>
 </body>

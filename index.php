@@ -78,7 +78,9 @@ $specialItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <body>
     <!-- Header -->
     <header class="header">
-        <img src="Media/logo.png" alt="Логотип" class="logo"/>
+        <a href="index.php">
+            <img src="Media/logo.png" alt="Логотип" class="logo"/>
+        </a>
         <div class="search-container">
             <input class="search-input" placeholder="Поиск по названию, описанию или категории" type="text"/>
             <div class="search-results"></div>
@@ -124,19 +126,116 @@ $specialItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     <!-- Slider -->
     <div class="slider-container">
-        <div id="slider">
-            <img src="Media/slide1.jpg" alt="Слайд 1" class="slider-image"/>
-            <img src="Media/slide2.jpg" alt="Слайд 2" class="slider-image"/>
-            <img src="Media/slide3.jpg" alt="Слайд 3" class="slider-image"/>
+        <div class="slider">
+            <div class="slider-track">
+                <div class="slide">
+                    <img src="Media/slide1.jpg" alt="Слайд 1" class="slider-image"/>
+                </div>
+                <div class="slide">
+                    <img src="Media/slide2.jpg" alt="Слайд 2" class="slider-image"/>
+                </div>
+                <div class="slide">
+                    <img src="Media/slide3.jpg" alt="Слайд 3" class="slider-image"/>
+                </div>
+            </div>
+            <button class="slider-button prev-button">&#10094;</button>
+            <button class="slider-button next-button">&#10095;</button>
+            <div class="slider-dots"></div>
         </div>
     </div>
+
+    <style>
+        .slider-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 15px;
+        }
+
+        .slider {
+            position: relative;
+            overflow: hidden;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .slider-track {
+            display: flex;
+            transition: transform 0.5s ease-in-out;
+        }
+
+        .slide {
+            flex: 0 0 100%;
+            width: 100%;
+        }
+
+        .slider-image {
+            width: 100%;
+            height: 400px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .slider-button {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.7);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s;
+            z-index: 2;
+        }
+
+        .slider-button:hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .prev-button {
+            left: 20px;
+        }
+
+        .next-button {
+            right: 20px;
+        }
+
+        .slider-dots {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 2;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .dot.active {
+            background: white;
+        }
+    </style>
 
     <div class="container">
         <!-- Секция Новинки -->
         <section class="section">
             <div class="section-header">
                 <h2>Новинки</h2>
-                <a href="#" class="more-link">Ещё <img src="Media/arrow.png" alt="Стрелка" class="arrow-icon"/></a>
+                <a href="./Page/catalog.php" class="more-link">Ещё <img src="../Media/arrow.png" alt="Стрелка" class="arrow-icon"/></a>
             </div>
             <div class="products-grid">
                 <?php foreach ($newItems as $item): ?>
@@ -353,6 +452,86 @@ $specialItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
         });
     });
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const slider = document.querySelector('.slider');
+            const track = slider.querySelector('.slider-track');
+            const slides = slider.querySelectorAll('.slide');
+            const prevButton = slider.querySelector('.prev-button');
+            const nextButton = slider.querySelector('.next-button');
+            const dotsContainer = slider.querySelector('.slider-dots');
+            
+            let currentSlide = 0;
+            const slideCount = slides.length;
+
+            // Create dots
+            slides.forEach((_, index) => {
+                const dot = document.createElement('div');
+                dot.classList.add('dot');
+                if (index === 0) dot.classList.add('active');
+                dot.addEventListener('click', () => goToSlide(index));
+                dotsContainer.appendChild(dot);
+            });
+
+            const dots = dotsContainer.querySelectorAll('.dot');
+
+            function updateDots() {
+                dots.forEach((dot, index) => {
+                    dot.classList.toggle('active', index === currentSlide);
+                });
+            }
+
+            function goToSlide(index) {
+                currentSlide = index;
+                track.style.transform = `translateX(-${currentSlide * 100}%)`;
+                updateDots();
+            }
+
+            function nextSlide() {
+                currentSlide = (currentSlide + 1) % slideCount;
+                goToSlide(currentSlide);
+            }
+
+            function prevSlide() {
+                currentSlide = (currentSlide - 1 + slideCount) % slideCount;
+                goToSlide(currentSlide);
+            }
+
+            // Event listeners
+            prevButton.addEventListener('click', prevSlide);
+            nextButton.addEventListener('click', nextSlide);
+
+            // Auto-advance slides
+            let slideInterval = setInterval(nextSlide, 5000);
+
+            // Pause auto-advance on hover
+            slider.addEventListener('mouseenter', () => {
+                clearInterval(slideInterval);
+            });
+
+            slider.addEventListener('mouseleave', () => {
+                slideInterval = setInterval(nextSlide, 5000);
+            });
+
+            // Touch support
+            let touchStartX = 0;
+            let touchEndX = 0;
+
+            slider.addEventListener('touchstart', e => {
+                touchStartX = e.changedTouches[0].screenX;
+            });
+
+            slider.addEventListener('touchend', e => {
+                touchEndX = e.changedTouches[0].screenX;
+                if (touchStartX - touchEndX > 50) {
+                    nextSlide();
+                } else if (touchEndX - touchStartX > 50) {
+                    prevSlide();
+                }
+            });
+        });
     </script>
 </body>
 </html>

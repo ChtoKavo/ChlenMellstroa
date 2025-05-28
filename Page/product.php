@@ -9,17 +9,19 @@
 <body>
 <div class="page-wrapper">
     <header class="header">
-        <img src="./images/logo.png" alt="Логотип" class="logo" />
+        <a href="../index.php">
+            <img src="../Media/logo.png" alt="Логотип" class="logo" />
+        </a>
         <input class="search-input" placeholder='Название товара' type='text' />
         <div class="button-container">
-            <a href="/personal" class="icon-button">
-                <img alt='user' src="./images/user-icon.png" />
+            <a href="personal.php" class="icon-button">
+                <img alt='user' src="../Media/user-icon.png" />
             </a>
-            <a href="/favourites" class="icon-button">
-                <img alt='love' src="./images/love-icon.png" />
+            <a href="fav.php" class="icon-button">
+                <img alt='love' src="../Media/love-icon.png" />
             </a>
-            <a href="/basket" class="icon-button">
-                <img alt='store' src="./images/store-icon.png" />
+            <a href="busket.php" class="icon-button">
+                <img alt='store' src="../Media/store-icon.png" />
             </a>
         </div>
     </header>
