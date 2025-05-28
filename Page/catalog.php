@@ -221,8 +221,11 @@ try {
         }
 
         .favorite-button img {
-            width: 18px;
-            height: 18px;
+            width: 20px;
+            height: 20px;
+            object-fit: contain;
+            display: block;
+            margin: auto;
         }
 
         .new-product-content {
@@ -283,8 +286,9 @@ try {
         }
 
         .new-basket-button img {
-            width: 16px;
-            height: 16px;
+            width: 20px;
+            height: 20px;
+            object-fit: contain;
         }
 
         /* Стили для контролов каталога */
@@ -364,13 +368,13 @@ try {
         </form>
         <div class="button-container">
             <a href="personal.php" class="icon-button">
-                <img alt="user" src="../Media/user-icon.png" />
+                <img alt="user" src="../Media/icon1.png" />
             </a>
             <a href="fav.php" class="icon-button">
-                <img alt="love" src="../Media/love-icon.png" />
+                <img alt="love" src="../Media/icon2.png" />
             </a>
             <a href="busket.php" class="icon-button">
-                <img alt="store" src="../Media/store-icon.png" />
+                <img alt="store" src="../Media/icon3.png" />
             </a>
         </div>
     </header>
@@ -431,7 +435,7 @@ try {
                             <div class="product-image-container">
                                 <?php if (isset($_SESSION['user_id'])): ?>
                                     <button class="favorite-button" onclick="toggleFavorite(<?php echo $item['idItem']; ?>, this)">
-                                        <img src="../Media/<?php echo in_array($item['idItem'], $favorites) ? 'love-icon-filled.png' : 'love-icon.png'; ?>" 
+                                        <img src="../Media/<?php echo in_array($item['idItem'], $favorites) ? 'icon2.png' : 'icon2.png'; ?>" 
                                              alt="<?php echo in_array($item['idItem'], $favorites) ? 'В избранном' : 'Добавить в избранное'; ?>" />
                                     </button>
                                 <?php endif; ?>
@@ -526,10 +530,10 @@ try {
             if (data.success) {
                 const img = button.querySelector('img');
                 if (data.action === 'added') {
-                    img.src = '../Media/love-icon-filled.png';
+                    img.src = '../Media/icon2.png';
                     img.alt = 'В избранном';
                 } else {
-                    img.src = '../Media/love-icon.png';
+                    img.src = '../Media/icon2.png';
                     img.alt = 'Добавить в избранное';
                 }
             }

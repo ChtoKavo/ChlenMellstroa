@@ -61,13 +61,14 @@ try {
             margin-right: 10px;
         }
         .content {
-            display: flex;
-            justify-content: space-between;
+            width: 100%;
+            margin-top: 20px;
         }
         .new-product-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 35px;
+            width: 100%;
         }
         .new-product-card {
             border: 1px solid #ddd;
@@ -134,13 +135,13 @@ try {
         <input style="width: 500px;" placeholder="Название товара" type="text" />
         <div class="button-container">
             <a href="personal.php" class="icon-button">
-                <img alt="user" src="../Media/user-icon.png" />
+                <img alt="user" src="../Media/icon1.png" />
             </a>
             <a href="fav.php" class="icon-button">
-                <img alt="love" src="../Media/love-icon.png" />
+                <img alt="love" src="../Media/icon2.png" />
             </a>
             <a href="busket.php" class="icon-button">
-                <img alt="store" src="../Media/store-icon.png" />
+                <img alt="store" src="../Media/icon3.png" />
             </a>
         </div>
     </header>
@@ -174,23 +175,20 @@ try {
                         </div>
                         <div class="product-actions">
                             <button class="favorite-button" onclick="toggleFavorite(<?php echo $item['idItem']; ?>)">
-                                <img src="../Media/love-icon-filled.png" alt="В избранном" />
+                                <img src="../Media/icon2.png" alt="В избранном" />
                             </button>
                             <button class="new-basket-button" onclick="addToCart(<?php echo $item['idItem']; ?>)">
-                                <img src="../Media/store-icon.png" alt="В корзину" />
+                                <img src="../Media/icon3.png" alt="В корзину" />
                             </button>
                         </div>
                     </div>
                 <?php endforeach; ?>
             <?php endif; ?>
         </main>
-        <div class="advertisement">
-            <img src="./images/favourites/Реклама.png" alt="Реклама" />
-        </div>
     </div>
     <footer class="footer">
         <div class="footer-logo">
-            <img src="./images/Используются везде/logo.png" alt="logofooter" />
+            <img src="../Media/logo.png" alt="logofooter" />
         </div>
         <div class="footer-content">
             <div class="footer-section">
@@ -222,7 +220,7 @@ try {
         </div>
         <div class="footer-qr">
             <div class="qr-code">
-                <img src="./images/Используются везде/qr-code.png" alt="QR Code" />
+                <img src="../Media/qr-code.png" alt="QR Code" />
             </div>
         </div>
     </footer>
